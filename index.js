@@ -2,17 +2,23 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-// Import Vertex AI client
-const { PredictionServiceClient } = require("@google-cloud/aiplatform").v1;
+// Import the modern Vertex AI SDK for Gemini
+const { VertexAI } = require("@google-cloud/vertexai");
 
-// Initialize Vertex AI client
-const client = new PredictionServiceClient({
-  keyFilename: "vertex-AI-account-key-rule-weaver.json", // path to your JSON key json file
+const project = "bionic-rock-473709-e8";
+const location = "us-central1";
+
+// Initialize the Vertex AI client for the project/location
+// Note: It will automatically use the credentials specified in keyFilename
+const ai = new VertexAI({
+  project: project,
+  location: location,
+  keyFilename: "vertex-AI-account-key-rule-weaver.json",
 });
 
-const project = "vertex-chatbot-sa"; // your GCP project ID
-const location = "us-central1"; // adjust if needed
-const endpoint = `projects/${project}/locations/${location}/publishers/google/models/text-bison`;
+// Initialize the Generative Model
+const model = "gemini-2.5-flash";
+const generativeModel = ai.getGenerativeModel({ model });
 
 const app = express();
 app.use(cors());
@@ -23,17 +29,24 @@ app.post("/api/chat", async (req, res) => {
   if (!message) return res.status(400).json({ error: "Message is required" });
 
   try {
-    const [response] = await client.predict({
-      endpoint,
-      instances: [{ content: message }],
+    // Use generateContent method with a simple text message
+    const response = await generativeModel.generateContent({
+      contents: [{ role: "user", parts: [{ text: message }] }],
     });
 
-    // Vertex AI returns predictions array
-    const reply = response.predictions[0].content;
+    // 👇 ADD THIS LINE TO SEE WHAT THE MODEL ACTUALLY SENT
+   console.log("Vertex AI Raw Response:", JSON.stringify(response, null, 2));
+
+    // Extract the text reply
+    const reply = response.text;
     res.json({ reply });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Vertex AI request failed" });
+    console.error("Vertex AI error details:", error);
+    res.status(500).json({
+      error: "Vertex AI request failed",
+      details: error.message,
+    });
   }
 });
 
