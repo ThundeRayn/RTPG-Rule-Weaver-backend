@@ -1,7 +1,18 @@
 const express = require("express");
-const axios = require("axios");
 const cors = require("cors");
-require("dotenv").config(); //loads env file
+require("dotenv").config();
+
+// Import Vertex AI client
+const { PredictionServiceClient } = require("@google-cloud/aiplatform").v1;
+
+// Initialize Vertex AI client
+const client = new PredictionServiceClient({
+  keyFilename: "vertex-AI-account-key-rule-weaver.json", // path to your JSON key json file
+});
+
+const project = "vertex-chatbot-sa"; // your GCP project ID
+const location = "us-central1"; // adjust if needed
+const endpoint = `projects/${project}/locations/${location}/publishers/google/models/text-bison`;
 
 const app = express();
 app.use(cors());
@@ -9,31 +20,19 @@ app.use(express.json());
 
 app.post("/api/chat", async (req, res) => {
   const { message } = req.body;
-
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
-  }
+  if (!message) return res.status(400).json({ error: "Message is required" });
 
   try {
-    // Example Vertex AI request (REST API)
-    const response = await axios.post(
-      "https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/us-central1/publishers/google/models/text-bison:predict",
-      {
-        instances: [{ content: message }],
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.VERTEX_AI_API_KEY}`,
-        },
-      }
-    );
+    const [response] = await client.predict({
+      endpoint,
+      instances: [{ content: message }],
+    });
 
-    const reply = response.data.predictions[0].content;
+    // Vertex AI returns predictions array
+    const reply = response.predictions[0].content;
     res.json({ reply });
-
   } catch (error) {
-    console.error(error.response?.data || error.message);
+    console.error(error);
     res.status(500).json({ error: "Vertex AI request failed" });
   }
 });
