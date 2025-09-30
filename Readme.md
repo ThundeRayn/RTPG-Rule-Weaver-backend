@@ -13,3 +13,6 @@ create your own `.env` file,
 ```.env
 VERTEX_AI_API_KEY=put_your_own_API_key_here
 ```
+
+#### Find frontend at
+https://github.com/ThundeRayn/TRPG-Rule-Weaver-AI
