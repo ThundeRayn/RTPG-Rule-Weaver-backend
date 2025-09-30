@@ -13,12 +13,26 @@ const location = "us-central1";
 const ai = new VertexAI({
   project: project,
   location: location,
-  keyFilename: "vertex-AI-account-key-rule-weaver.json",
+  //keyFilename: "vertex-AI-account-key-rule-weaver.json",
 });
 
 // Initialize the Generative Model
 const model = "gemini-2.5-flash";
-const generativeModel = ai.getGenerativeModel({ model });
+// Define the System Instructions to set the model's role and constraints
+const systemInstruction = `You are an expert, helpful, and concise rule guide for the Call of Cthulhu (CoC) tabletop role-playing game (TRPG), specifically using the 7th Edition ruleset unless otherwise specified.
+Your purpose is strictly to answer questions related to CoC rules, lore (mythos, creatures, spells, scenarios), and character creation.
+DO NOT provide information, lore, or rules from any other TRPG (such as Dungeons & Dragons, Pathfinder, Warhammer, etc.), board game, or video game.
+If a question is outside the scope of Call of Cthulhu, politely decline and state that you only answer questions related to the CoC TRPG.`;
+
+// Initialize the Generative Model with the new System Instruction
+const generativeModel = ai.getGenerativeModel({ 
+  model: model,
+  config: {
+    systemInstruction: systemInstruction,
+  },
+});
+
+
 
 const app = express();
 app.use(cors());
@@ -29,20 +43,31 @@ app.post("/api/chat", async (req, res) => {
   if (!message) return res.status(400).json({ error: "Message is required" });
 
   try {
-    // Use generateContent method with a simple text message
-    const response = await generativeModel.generateContent({
+    // rawResponse is the object you logged in your console
+    const rawResponse = await generativeModel.generateContent({
       contents: [{ role: "user", parts: [{ text: message }] }],
     });
 
-    // 👇 ADD THIS LINE TO SEE WHAT THE MODEL ACTUALLY SENT
-   console.log("Vertex AI Raw Response:", JSON.stringify(response, null, 2));
+    // --- CRITICAL FIX: Extracting the nested text ---
+    const reply = rawResponse.response?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    // Extract the text reply
-    const reply = response.text;
+    // Check if the reply was successfully extracted, otherwise send a helpful message
+    if (!reply) {
+        // Log a more detailed error if the reply field is missing
+        console.error("Failed to extract reply text from model response.");
+        return res.status(500).json({ 
+            error: "Model request OK, but could not parse the response text.",
+            details: "Check server logs for the full raw response structure."
+        });
+    }
+
+    // Now, send the extracted reply
     res.json({ reply });
 
   } catch (error) {
-    console.error("Vertex AI error details:", error);
+    // Print detailed error info for debugging
+    console.error("Vertex AI request failed:", error);
+
     res.status(500).json({
       error: "Vertex AI request failed",
       details: error.message,
